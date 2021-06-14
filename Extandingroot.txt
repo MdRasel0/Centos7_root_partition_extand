@@ -1,0 +1,113 @@
+===============================
+How To extand /dev/mapper/centos-root without rebooting the system
+==============================
+
+Step-By-Step Instructions
+---You MUST be root to perform the below steps---
+
+1. Check the current disk status to ensure dev/mapper/cl-root /dev/mapper/centos-root) is exactly 50G and /dev/mapper/cl-home (/dev/mapper/centos-home) is much larger in size.
+df -h
+
+Example:
+[root@ptaserver /]# df -h
+Filesystem           Size  Used Avail Use% Mounted on
+devtmpfs             7.8G     0  7.8G   0% /dev
+tmpfs                7.8G     0  7.8G   0% /dev/shm
+tmpfs                7.8G  802M  7.0G  11% /run
+tmpfs                7.8G     0  7.8G   0% /sys/fs/cgroup
+/dev/mapper/cl-root   50G   11G   40G  22% /
+/dev/sda1           1014M  265M  750M  27% /boot
+/dev/mapper/cl-home  441G   33M  441G   1% /home
+tmpfs                1.6G     0  1.6G   0% /run/user/1001
+tmpfs                1.6G     0  1.6G   0% /run/user/1007
+tmpfs                1.6G     0  1.6G   0% /run/user/1003
+tmpfs                1.6G     0  1.6G   0% /run/user/1005
+tmpfs                1.6G     0  1.6G   0% /run/user/1006
+tmpfs                1.6G     0  1.6G   0% /run/user/1008
+tmpfs                1.6G     0  1.6G   0% /run/user/0
+
+
+2. Stop PTA
+service appmgr stop
+
+
+3. Copy everything from the home directory out
+cp -a /home /home2
+
+
+4. Unmount the volume
+umount /dev/mapper/cl-home (umount /dev/mapper/centos-home)
+
+
+5. Delete the home logical volume
+lvremove /dev/mapper/cl-home (lvremove /dev/mapper/centos-home)
+
+Example:
+[root@ptaserver /]# lvremove /dev/mapper/cl-home
+Do you really want to remove active logical volume cl/home? [y/n]: y
+  Logical volume "home" successfully removed
+
+
+6. Extend the root logical volume to take up the rest of the space
+lvextend -l +100%FREE /dev/mapper/cl-root (lvextend -l +100%FREE /dev/mapper/centos-root)
+
+Example:
+[root@ptaserver /]# lvextend -l +100%FREE /dev/mapper/cl-root
+  Size of logical volume cl/root changed from 50.00 GiB (12800 extents) to 481.12 GiB (123167 extents).
+  Logical volume cl/root successfully resized.
+
+
+7. Extend the xfs partition
+xfs_growfs /dev/mapper/cl-root (xfs_growfs /dev/mapper/centos-root)
+
+Example:
+[root@ptaserver /]# xfs_growfs /dev/mapper/cl-root
+meta-data=/dev/mapper/cl-root    isize=512    agcount=4, agsize=3276800 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=0 spinodes=0
+data     =                       bsize=4096   blocks=13107200, imaxpct=25
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0 ftype=1
+log      =internal               bsize=4096   blocks=6400, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+data blocks changed from 13107200 to 128744448
+
+
+8. Check that /dev/mapper/cl-root (/dev/mapper/centos-root) has been increased in size and that /dev/mapper/cl-home (/dev/mapper/centos-home) has been removed
+df -h
+
+Example:
+[root@ptaserver /]# df -h
+Filesystem           Size  Used Avail Use% Mounted on
+devtmpfs             7.8G     0  7.8G   0% /dev
+tmpfs                7.8G     0  7.8G   0% /dev/shm
+tmpfs                7.8G  810M  7.0G  11% /run
+tmpfs                7.8G     0  7.8G   0% /sys/fs/cgroup
+/dev/mapper/cl-root  492G   11G  481G   3% /
+/dev/sda1           1014M  265M  750M  27% /boot
+tmpfs                1.6G     0  1.6G   0% /run/user/1001
+tmpfs                1.6G     0  1.6G   0% /run/user/0
+tmpfs                1.6G     0  1.6G   0% /run/user/1007
+tmpfs                1.6G     0  1.6G   0% /run/user/1003
+tmpfs                1.6G     0  1.6G   0% /run/user/1005
+tmpfs                1.6G     0  1.6G   0% /run/user/1006
+tmpfs                1.6G     0  1.6G   0% /run/user/1008
+
+9. Move the home directory data back and remove the temporary home2 directory
+mv /home2/* /home/
+rmdir /home2
+
+
+10. Remove the /dev/mapper/cl-home (lvremove /dev/mapper/centos-home) entry from /etc/fstab
+vi /etc/fstab
+DELETE the line:
+/dev/mapper/cl-home     /home                   xfs     defaults        0 0
+
+
+11. Start PTA
+service appmgr start
+
+
+12. Run Diagnostics to ensure PTA is functioning again:
+RUN_DIAGNOSTICS
